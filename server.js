@@ -14,22 +14,23 @@ http.createServer(function(request, response) {
 	console.log(request.url);
 	// console.log(request);
 	
-	var data;
+	var data = [];
 	request.on('data', chunk => {
 		console.log(`Data chunk available: ${chunk}`);
-		data = JSON.parse(chunk.toString()); // chunk is byte stream, need to change to string and use json to parse
+		data.push(chunk); // chunk is byte stream, need to change to string and use json to parse
+	}).on("end", () => {
+		data = JSON.parse(Buffer.concat(data).toString());
+		
 		// check command type
 		cmdType = data.cmdType;
 		console.log('data: ' + data);
 		console.log('data.cmdType: ' + data.cmdType);
-		result = 'waiting...';
+
 		switch(cmdType) {
 			case CMD_LOGIN: 
 				console.log('this is a login command');
-				result = checkUser(data);
-				console.log('result is ' + result);
+				checkUser(data, response)
 		}
-		response.end('result is ' + result);
 	});
 }).listen(8888);
 
@@ -43,7 +44,7 @@ function checkUserQuery(params) {
 	return query;
 }
 
-function checkUser(params) {
+function checkUser(params, response) {
 	var mysql = require('mysql');
 	var connection = mysql.createConnection({
 		host: 'localhost',
@@ -53,15 +54,20 @@ function checkUser(params) {
 	});
 
 	connection.connect();
-	var returnResult = 'login success';
-	connection.query(checkUserQuery(params), function (error, results, fields
-	) {
-		if (error || results.length === 0) {
-			throw error;
-		};
-		
-		console.log('got record');
-		console.log(results);
+	
+	
+	var returnResult = [];
+	var query = connection.query(checkUserQuery(params));
+	query.on('result', function(row) {
+		connection.pause();
+		returnResult.push(row);
+		connection.resume();
+	}).on('end', function() {
+		console.log('completed db operation');
+		if(returnResult.length > 0) {
+			response.end(returnResult.toString());
+		} else {
+			response.end('wrong user');
+		}
 	});
-	return returnResult;
 }
