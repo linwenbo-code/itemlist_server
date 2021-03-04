@@ -26,10 +26,17 @@ http.createServer(function(request, response) {
 		console.log('data: ' + data);
 		console.log('data.cmdType: ' + data.cmdType);
 
+		var connection = getConnection();
+
 		switch(cmdType) {
 			case CMD_LOGIN: 
 				console.log('this is a login command');
-				checkUser(data, response)
+				checkUser(connection, data, response);
+				break;
+			case CMD_REGISTER:
+				console.log('this is a register command');
+				register(connection, data, response);
+				break;
 		}
 	});
 }).listen(8888);
@@ -38,13 +45,16 @@ http.createServer(function(request, response) {
 console.log('Server running at http://127.0.0.1:8888');
 console.log('I am on dev');
 
+
+// 构造用户名密码查询sql
 function checkUserQuery(params) {
-	var query = `select * from user where username='${params.mobile}' and password='${params.password}'; `;
+	var query = `select * from user where mobile='${params.mobile}' and password='${params.password}'; `;
 	console.log('query is ' + query);
 	return query;
 }
 
-function checkUser(params, response) {
+// 构件数据库链接
+function getConnection() {
 	var mysql = require('mysql');
 	var connection = mysql.createConnection({
 		host: 'localhost',
@@ -52,10 +62,13 @@ function checkUser(params, response) {
 		password: 'welcome',
 		database: 'itemlist'
 	});
-
+	
 	connection.connect();
-	
-	
+	return connection;
+}
+
+// 检查用户名密码是否在数据库中
+function checkUser(connection, params, response) {
 	var returnResult = [];
 	var query = connection.query(checkUserQuery(params));
 	query.on('result', function(row) {
@@ -68,6 +81,33 @@ function checkUser(params, response) {
 			response.end(returnResult.toString());
 		} else {
 			response.end('wrong user');
+			connection.end();
 		}
 	});
+	//connection.end();
+}
+
+// 注册用户
+function register(connection, params, response) {
+	var  addSql = 'INSERT INTO user(mobile, password) VALUES(?,?)';
+	var  addSqlParams = [params.mobile, params.password];
+	//增
+	connection.query(addSql,addSqlParams,function (err, result) {
+			if(err){
+				console.log('[INSERT ERROR] - ',err.message);
+				response.end('insert error');
+				connection.end();
+				return;
+			}        
+			 
+			console.log('--------------------------INSERT----------------------------');
+			//console.log('INSERT ID:',result.insertId);        
+			console.log('INSERT ID:',result);        
+			console.log('-----------------------------------------------------------------\n\n');  
+			
+			response.end('completed insert. ');
+			connection.end();
+	});
+	 
+	//connection.end();
 }
